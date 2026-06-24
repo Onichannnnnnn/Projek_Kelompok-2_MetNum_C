@@ -510,8 +510,16 @@
             backgroundColor: '#ffffff', borderColor: '#fbcfe8', borderWidth: 1,
             titleColor: '#334155', bodyColor: '#64748b',
             callbacks: {
-              title: items => 'x = ' + Number(items[0].label).toFixed(5),
-              label: item  => item.dataset.label + ': ' + Number(item.raw).toFixed(6),
+              // Menyesuaikan pembacaan nilai X
+              title: items => {
+                let xVal = (items[0].raw && items[0].raw.x !== undefined) ? items[0].raw.x : items[0].label;
+                return 'x = ' + Number(xVal).toFixed(5);
+              },
+              // Menyesuaikan pembacaan nilai Y
+              label: item  => {
+                let yVal = (item.raw && item.raw.y !== undefined) ? item.raw.y : item.raw;
+                return item.dataset.label + ': ' + Number(yVal).toFixed(6);
+              }
             }
           }
         },
