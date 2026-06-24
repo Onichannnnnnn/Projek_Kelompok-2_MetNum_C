@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kalkulator Bisection</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+
+  //CSS
+  <style>
+    /* Reset & Variabel Global */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Color Palette */
+      --bg     : #fdf2f8; /* Background utama pink sangat muda */
+      --surface: #ffffff; /* Panel putih */
+      --card   : #ffffff; /* Input/Tabel putih */
+      --accent : #f472b6; /* Pink pastel untuk tombol dan aksen */
+      --green  : #10b981; /* Hijau yang lebih gelap agar terbaca di background terang */
+      --orange : #f59e0b;
+      --text   : #334155; /* Abu-abu gelap untuk teks utama */
+      --muted  : #64748b; /* Abu-abu sedang untuk teks hint/label */
+      --border : #fbcfe8; /* Border pink pastel */
+      --r      : 10px;
+      --mono   : 'Courier New', monospace;
+    }
+
+    body {
+      background : var(--bg);
+      color      : var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height : 100vh;
+      padding    : 28px 20px 60px;
+    }
+
+    /* ---- Header ---- */
+    header { text-align: center; margin-bottom: 36px; }
+    .badge {
+      display       : inline-block;
+      background    : var(--accent);
+      color         : #fff;
+      font-size     : 11px;
+      font-weight   : 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding       : 3px 12px;
+      border-radius : 20px;
+      margin-bottom : 10px;
+    }
+    h1 { font-size: clamp(22px, 4vw, 34px); font-weight: 700; letter-spacing: -.5px; color: #1e293b; }
+    h1 span { color: var(--accent); }
+    header p { color: var(--muted); font-size: 14px; margin-top: 6px; }
+
+    /* ---- Grid Utama (RWD Desktop, Tablet, HP) ---- */
+    .grid {
+      display              : grid;
+      grid-template-columns: 310px 1fr;
+      grid-template-rows   : auto 1fr;
+      gap                  : 18px;
+      max-width            : 1200px;
+      margin               : 0 auto;
+    }
+    /* min-width: 0 mencegah konten meledak melebihi batas layar di HP/Tablet */
+    .g-left  { grid-column: 1; grid-row: 1 / 3; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .g-chart { grid-column: 2; grid-row: 1; min-width: 0; }
+    .g-table { grid-column: 2; grid-row: 2; min-width: 0; }
+
+    /* Responsive: Tablet (Layar ≤ 992px) */
+    @media (max-width: 992px) {
+      .grid    { grid-template-columns: 1fr; }
+      .g-left  { grid-column: 1; grid-row: auto; }
+      .g-chart { grid-column: 1; grid-row: auto; }
+      .g-table { grid-column: 1; grid-row: auto; }
+    }
+
+    /* Responsive: Mobile / HP (Layar ≤ 576px) */
+    @media (max-width: 576px) {
+      body { padding: 16px 12px 40px; }
+      .row2 { grid-template-columns: 1fr !important; gap: 10px; } /* Susun input atas-bawah */
+      .chart-wrap { height: 260px !important; }
+      .panel { padding: 16px; }
+    }
+
+    /* ---- Panel / Card ---- */
+    .panel {
+      background   : var(--surface);
+      border       : 1px solid var(--border);
+      border-radius: var(--r);
+      padding      : 20px;
+      box-shadow   : 0 4px 6px -1px rgba(244, 114, 182, 0.1); /* Bayangan pink halus */
+    }
+    .panel-title {
+      font-size     : 11px;
+      font-weight   : 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color         : var(--muted);
+      margin-bottom : 14px;
+      padding-bottom: 10px;
+      border-bottom : 1px solid var(--border);
+    }
+
+    /* ---- Komponen Rumus ---- */
+    .formula {
+      background   : #fdf2f8; /* Pink sangat muda */
+      border-left  : 3px solid var(--accent);
+      border-radius: 0 7px 7px 0;
+      padding      : 10px 14px;
+      font-family  : var(--mono);
+      font-size    : 15px;
+      color        : var(--accent);
+      font-weight  : bold;
+      margin-bottom: 12px;
+    }
+    .cond-list { list-style: none; font-size: 12px; color: var(--muted); line-height: 2.2; }
+    .cond-list li::before { content: "✓  "; color: var(--green); font-weight: 700; }
+
+    /* ---- Form Input ---- */
+    .field { margin-top: 14px; }
+    .field label {
+      display       : block;
+      font-size     : 11px;
+      font-weight   : 700;
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      color         : var(--muted);
+      margin-bottom : 5px;
+    }
+    .field input {
+      width        : 100%;
+      background   : var(--card);
+      border       : 1px solid var(--border);
+      border-radius: 7px;
+      color        : var(--text);
+      font-size    : 14px;
+      font-family  : var(--mono);
+      padding      : 9px 12px;
+      outline      : none;
+      transition   : border-color .15s, box-shadow .15s;
+    }
+    .field input:focus { 
+      border-color: var(--accent); 
+      box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.2); 
+    }
+    .hint    { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.7; }
+    .preview { font-size: 11px; font-family: var(--mono); min-height: 16px; margin-top: 4px; }
+    .row2    { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+
+    /* ---- Tombol ---- */
+    .btn-calc {
+      display      : block; width: 100%; margin-top: 18px; padding: 11px;
+      background   : var(--accent); color: #fff;
+      border       : none; border-radius: 7px;
+      font-size    : 14px; font-weight: 700;
+      cursor       : pointer; transition: background .15s, transform .1s;
+    }
+    .btn-calc:hover { background: #ec4899; }
+    .btn-calc:active { transform: scale(0.98); }
+    
+    .btn-reset {
+      display      : block; width: 100%; margin-top: 8px; padding: 10px;
+      background   : transparent; color: var(--muted);
+      border       : 1px solid var(--border); border-radius: 7px;
+      font-size    : 13px; cursor: pointer; transition: all .15s;
+    }
+    .btn-reset:hover { border-color: var(--accent); color: var(--accent); background: #fdf2f8; }
+
+    /* ---- Pesan Error ---- */
+    .errmsg {
+      display      : none; color: #ef4444; font-size: 12px;
+      margin-top   : 10px; padding: 8px 10px;
+      background   : #fef2f2;
+      border-radius: 6px; border-left: 3px solid #ef4444;
+    }
+    .errmsg.show { display: block; }
+
+    /* ---- Kotak Hasil Akhir ---- */
+    .result-box {
+      display      : none; margin-top: 16px;
+      background   : var(--card);
+      border       : 1px solid var(--border); border-radius: var(--r);
+      overflow     : hidden;
+    }
+    .result-box.show { display: block; }
+    .res-head {
+      font-size     : 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--muted); background: #fdf2f8;
+      padding       : 9px 14px; border-bottom: 1px solid var(--border);
+    }
+    .kv {
+      display        : flex; justify-content: space-between; align-items: center;
+      padding        : 8px 14px; font-size: 13px;
+      border-bottom  : 1px solid var(--border);
+    }
+    .kv:last-child { border-bottom: none; }
+    .kv .k { color: var(--muted); }
+    .kv .v { font-family: var(--mono); font-weight: 700; color: var(--green); }
+    .kv .v.warn { color: var(--orange); }
+
+    /* ---- Area Grafik ---- */
+    .chart-wrap {
+      background   : var(--card); border-radius: 8px;
+      padding      : 14px; height: 300px; position: relative;
+    }
+
+    /* ---- Tabel Iterasi ---- */
+    .tbl-wrap  { overflow-x: auto; margin-top: 4px; width: 100%; }
+    table      { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead th {
+      background    : #fdf2f8; color: var(--muted);
+      font-weight   : 700; text-transform: uppercase; letter-spacing: .5px;
+      padding       : 9px 12px; text-align: right;
+      border-bottom : 2px solid var(--border); white-space: nowrap;
+    }
+    thead th:first-child { text-align: center; }
+    tbody td {
+      padding      : 7px 12px; text-align: right;
+      font-family  : var(--mono); border-bottom: 1px solid var(--border);
+      white-space  : nowrap;
+    }
+    tbody td:first-child { text-align: center; color: var(--muted); }
+    tbody tr:hover td    { background: #fdf2f8; }
+    tbody tr.last td     { background: #ecfdf5; color: var(--green); font-weight: 700; }
+    .td-kb               { color: var(--accent) !important; font-weight: 700 !important; }
+    .td-empty td         { text-align: center !important; color: var(--muted) !important; padding: 24px !important; font-family: inherit !important; }
+
+    /* ---- Watermark ---- */
+    .watermark {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 30px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+
+
+//HTML  
+<header>
+  <div class="badge">Metode Numerik</div>
+  <h1>Kalkulator <span>Metode</span> Bisection</h1>
+  <p>Persamaan Nirlanjar Metode Tertutup</p>
+</header>
+
+<div class="grid">
+
+  <div class="g-left">
+
+    <div class="panel">
+      <div class="panel-title">Rumus Bisection</div>
+      <div class="formula">c = (a + b) / 2</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px">Iterasi berhenti jika salah satu kondisi terpenuhi:</p>
+      <ul class="cond-list">
+        <li>|f(c)| &lt; ε</li>
+        <li>Lebar kalang &lt; ε</li>
+        <li>Error relatif &lt; ε</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Input</div>
+
+      <div class="field">
+        <label>Fungsi f(x)</label>
+        <input id="iFunc" type="text" value="x^2+4*x-e^x" placeholder="Contoh: x^3-x-2"/>
+        <div class="hint">Format: <code>e^x</code>, <code>sin(x)</code>, <code>cos(x)</code>, <code>sqrt(x)</code>, <code>ln(x)</code>, <code>log(x)</code></div>
+        <div class="preview" id="prevFunc"></div>
+      </div>
+
+      <div class="row2">
+        <div class="field" style="margin-top:0">
+          <label>Nilai a (kiri)</label>
+          <input id="iA" type="number" value="3" step="any"/>
+        </div>
+        <div class="field" style="margin-top:0">
+          <label>Nilai b (kanan)</label>
+          <input id="iB" type="number" value="4" step="any"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Toleransi Error (ε)</label>
+        <input id="iEps" type="number" value="0.0001" step="any"/>
+      </div>
+
+      <div class="field">
+        <label>Maks Iterasi</label>
+        <input id="iMax" type="number" value="100" min="1" max="500"/>
+      </div>
+
+      <div class="errmsg" id="errMsg"></div>
+      <button class="btn-calc"  id="btnCalc">Hitung</button>
+      <button class="btn-reset" id="btnReset">Reset</button>
+
+      <div class="result-box" id="resultBox">
+        <div class="res-head">Hasil Akhir</div>
+        <div class="kv"><span class="k">Akar perkiraan (c)</span><span class="v"      id="rC">—</span></div>
+        <div class="kv"><span class="k">f(c)</span>              <span class="v"      id="rFc">—</span></div>
+        <div class="kv"><span class="k">Error relatif</span>     <span class="v warn" id="rErr">—</span></div>
+        <div class="kv"><span class="k">Jumlah iterasi</span>    <span class="v"      id="rIter">—</span></div>
+        <div class="kv"><span class="k">Konvergensi</span>       <span class="v"      id="rConv">—</span></div>
+        <div class="kv"><span class="k">Alasan berhenti</span>   <span class="v"      id="rStopReason">—</span></div>
+      </div>
+    </div>
+  </div><div class="g-chart panel">
+    <div class="panel-title">Kurva Fungsi</div>
+    <div class="chart-wrap">
+      <canvas id="myChart"></canvas>
+    </div>
+  </div>
+
+  <div class="g-table panel">
+    <div class="panel-title">Tabel Iterasi</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>i</th>
+            <th>A</th>
+            <th>B</th>
+            <th>C = (A+B)/2</th>
+            <th>f(A)</th>
+            <th>f(B)</th>
+            <th>f(C)</th>
+            <th>Kalang Baru</th>
+            <th>Error Rel.</th>
+          </tr>
+        </thead>
+        <tbody id="tblBody">
+          <tr class="td-empty"><td colspan="9">Belum ada perhitungan.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><div class="watermark">MetNum C_Kelompok 2: Indi - Taqia - Randi - Anggia</div>
+
+
+//JAVACRIPT
+<script>
+  'use strict';
+
+  let chartInst = null; // instance Chart.js aktif
+
+  // ──────────────────────────────────────────────────────────────
+  // [1] PARSER FUNGSI NATURAL
+  // ──────────────────────────────────────────────────────────────
+  function parseFunc(raw) {
+    return raw.trim()
+      .replace(/\be\^(\([^)]+\)|[\w.]+)/g, (_, a) => 'exp(' + a + ')') 
+      .replace(/\bln\(/g, 'log(');                                      
+  }
+
+  function evalF(raw, x) {
+    return math.evaluate(parseFunc(raw), { x });
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // [2] LOGIKA PERHITUNGAN BISECTION
+  // ──────────────────────────────────────────────────────────────
+  function bisection(raw, a, b, eps, maxIter) {
+
+    const eps1 = eps; 
+    const eps2 = eps; 
+    const eps3 = eps; 
+
+    const fa0 = evalF(raw, a), fb0 = evalF(raw, b);
+    if (fa0 * fb0 > 0) {
+      throw new Error(
+        'f(a) = ' + fa0.toFixed(6) + ' dan f(b) = ' + fb0.toFixed(6) +
+        ' harus berbeda tanda — pastikan akar berada di antara a dan b.'
+      );
+    }
+
+    const rows = [];
+    let cPrev  = null;
+
+    for (let i = 1; i <= maxIter; i++) {
+      const aOrig = a;                         
+      const bOrig = b;                         
+
+      const c  = (aOrig + bOrig) / 2;         
+      const fa = evalF(raw, aOrig);
+      const fb = evalF(raw, bOrig);
+      const fc = evalF(raw, c);
+
+      const lebar  = Math.abs(bOrig - aOrig);
+      const errRel = cPrev !== null ? Math.abs((c - cPrev) / c) : null;
+
+      const kalangBaru = (fa * fc < 0) ? '[a, c]' : '[c, b]';
+
+      rows.push({ i, aOrig, bOrig, c, fa, fb, fc, lebar, errRel, kalangBaru });
+
+      if (Math.abs(fc) < Number.EPSILON)
+        return { rows, root: c, converged: true, stopReason: 'f(c) = 0 (akar eksak)' };
+
+      if (lebar < eps1)
+        return { rows, root: c, converged: true, stopReason: 'Lebar kalang < ε' };
+      if (Math.abs(fc) < eps2)
+        return { rows, root: c, converged: true, stopReason: '|f(c)| < ε' };
+      if (errRel !== null && errRel < eps3)
+        return { rows, root: c, converged: true, stopReason: 'Error relatif < ε' };
+
+      if (fa * fc < 0) b = c;
+      else             a = c;
+
+      cPrev = c;
+    }
+
+    return { rows, root: rows[rows.length - 1].c, converged: false, stopReason: 'Maks iterasi tercapai' };
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // [3] RENDER TABEL ITERASI
+  // ──────────────────────────────────────────────────────────────
+  function fmt(v, d = 6) {
+    return (v === null || v === undefined || isNaN(v)) ? '—' : Number(v).toFixed(d);
+  }
+
+  function renderTable(rows) {
+    const tbody = document.getElementById('tblBody');
+    tbody.innerHTML = '';
+    rows.forEach((r, idx) => {
+      const tr = document.createElement('tr');
+      if (idx === rows.length - 1) tr.className = 'last';
+      tr.innerHTML =
+        `<td>${r.i}</td>` +
+        `<td>${fmt(r.aOrig)}</td>` +
+        `<td>${fmt(r.bOrig)}</td>` +
+        `<td>${fmt(r.c)}</td>` +
+        `<td>${fmt(r.fa)}</td>` +
+        `<td>${fmt(r.fb)}</td>` +
+        `<td>${fmt(r.fc)}</td>` +
+        `<td class="td-kb">${r.kalangBaru}</td>` +
+        `<td>${r.errRel !== null ? fmt(r.errRel) : '—'}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // [4] RENDER KURVA FUNGSI (Chart.js)
+  // ──────────────────────────────────────────────────────────────
+  function renderChart(raw, a, b, root) {
+    const xMin   = -10;
+    const xMax   = 10;
+    const steps  = 400; 
+    const dx     = (xMax - xMin) / steps;
+
+    const labels = [], dataY = [];
+    for (let i = 0; i <= steps; i++) {
+      const x = xMin + i * dx;
+      labels.push(x);
+      try   { dataY.push(evalF(raw, x)); }
+      catch { dataY.push(null); }
+    }
+
+    if (chartInst) chartInst.destroy();
+
+    chartInst = new Chart(document.getElementById('myChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label      : 'f(x)',
+            data       : dataY,
+            borderColor: '#f472b6', 
+            borderWidth: 2,
+            pointRadius: 0,
+            tension    : 0.3,
+            fill       : false,
+          },
+          {
+            label      : 'Sumbu X', 
+            data       : labels.map(() => 0),
+            borderColor: 'rgba(100, 116, 139, 0.3)', 
+            borderWidth: 1.5,
+            pointRadius: 0,
+          },
+          {
+            label      : 'Sumbu Y', 
+            data       : [{x: 0, y: -10}, {x: 0, y: 10}], 
+            borderColor: 'rgba(100, 116, 139, 0.3)', 
+            borderWidth: 1.5,
+            pointRadius: 0,
+          },
+          {
+            label               : 'Akar ≈ ' + root.toFixed(6),
+            data                : [{ x: root, y: 0 }],
+            type                : 'scatter',
+            pointRadius         : 9,
+            pointBackgroundColor: '#10b981', 
+            pointBorderColor    : '#fff',
+            pointBorderWidth    : 2,
+          }
+        ]
+      },
+      options: {
+        responsive         : true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend : { labels: { color: '#64748b', font: { size: 11 }, boxWidth: 14 } },
+          tooltip: {
+            backgroundColor: '#ffffff', borderColor: '#fbcfe8', borderWidth: 1,
+            titleColor: '#334155', bodyColor: '#64748b',
+            callbacks: {
+              title: items => 'x = ' + Number(items[0].label).toFixed(5),
+              label: item  => item.dataset.label + ': ' + Number(item.raw).toFixed(6),
+            }
+          }
+        },
+        scales: {
+          x: { 
+            type: 'linear', 
+            min: -10,
+            max: 10,
+            ticks: { 
+              color: '#64748b', 
+              stepSize: 0.5, 
+              callback: v => Number(v).toFixed(1) 
+            }, 
+            grid: { color: 'rgba(0,0,0,0.05)' } 
+          },
+          y: { 
+            min: -10,
+            max: 10,
+            ticks: { 
+              color: '#64748b', 
+              stepSize: 0.5, 
+              callback: v => Number(v).toFixed(1) 
+            },                                      
+            grid: { color: 'rgba(0,0,0,0.05)' } 
+          },
+        }
+      }
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // [5] LIVE PREVIEW INPUT FUNGSI
+  // ──────────────────────────────────────────────────────────────
+  document.getElementById('iFunc').addEventListener('input', function () {
+    const el = document.getElementById('prevFunc');
+    try {
+      evalF(this.value, 1);
+      const parsed = parseFunc(this.value);
+      el.style.color = 'var(--green)';
+      el.textContent = parsed !== this.value.trim() ? '→ ' + parsed : '✓ valid';
+    } catch (e) {
+      el.style.color = '#ef4444';
+      el.textContent = '✗ ' + e.message.split('\n')[0];
+    }
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // [6] TOMBOL HITUNG
+  // ──────────────────────────────────────────────────────────────
+  document.getElementById('btnCalc').addEventListener('click', () => {
+    const raw     = document.getElementById('iFunc').value.trim();
+    const a       = parseFloat(document.getElementById('iA').value);
+    const b       = parseFloat(document.getElementById('iB').value);
+    const eps     = parseFloat(document.getElementById('iEps').value);
+    const maxIter = parseInt(document.getElementById('iMax').value);
+    const errEl   = document.getElementById('errMsg');
+
+    errEl.classList.remove('show');
+    document.getElementById('resultBox').classList.remove('show');
+
+    const showErr = msg => { errEl.textContent = '⚠ ' + msg; errEl.classList.add('show'); };
+
+    if (!raw)                    return showErr('Masukkan fungsi f(x).');
+    if (isNaN(a) || isNaN(b))   return showErr('Nilai a dan b harus berupa angka.');
+    if (a >= b)                  return showErr('Nilai a harus lebih kecil dari b.');
+    if (isNaN(eps) || eps <= 0)  return showErr('Toleransi ε harus lebih besar dari 0.');
+
+    try { evalF(raw, 1); }
+    catch (e) { return showErr('Fungsi tidak valid: ' + e.message.split('\n')[0]); }
+
+    let result;
+    try { result = bisection(raw, a, b, eps, maxIter); }
+    catch (e) { return showErr(e.message); }
+
+    renderTable(result.rows);
+    renderChart(raw, a, b, result.root);
+
+    const last = result.rows[result.rows.length - 1];
+    document.getElementById('rC').textContent           = fmt(result.root);
+    document.getElementById('rFc').textContent          = fmt(last.fc);
+    document.getElementById('rErr').textContent         = last.errRel !== null ? fmt(last.errRel) : '—';
+    document.getElementById('rIter').textContent        = last.i;
+    document.getElementById('rConv').textContent        = result.converged ? '✓ Konvergen' : '✗ Belum konvergen';
+    document.getElementById('rStopReason').textContent  = result.stopReason || '—';
+    document.getElementById('resultBox').classList.add('show');
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // [7] TOMBOL RESET
+  // ──────────────────────────────────────────────────────────────
+  document.getElementById('btnReset').addEventListener('click', () => {
+    document.getElementById('iFunc').value = 'x^2+4*x-e^x';
+    document.getElementById('iA').value    = '3';
+    document.getElementById('iB').value    = '4';
+    document.getElementById('iEps').value  = '0.0001';
+    document.getElementById('iMax').value  = '100';
+
+    document.getElementById('prevFunc').textContent = '';
+    document.getElementById('errMsg').classList.remove('show');
+    document.getElementById('resultBox').classList.remove('show');
+    document.getElementById('tblBody').innerHTML =
+      '<tr class="td-empty"><td colspan="9">Belum ada perhitungan.</td></tr>';
+
+    if (chartInst) { chartInst.destroy(); chartInst = null; }
+  });
+</script>
+</body>
+</html>
